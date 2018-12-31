@@ -1,6 +1,7 @@
 import os
 import json
 import util
+import xattr
 
 class SyncServer:
     def __init__(self, inpipe, outpipe, rootdir, filedb):
@@ -38,16 +39,20 @@ class SyncServer:
         return False
 
     def read_mkdir(self, data):
+        fp = self.get_path(data['path'])
         try:
-            os.mkdir(self.get_path(data['path']))
+            os.mkdir(fp)
         except FileExistsError:
             pass
+        xattr.xattr(fp.encode(), xattr.XATTR_NOFOLLOW).set('user.pysync-stat', json.dumps(data['stat']).encode())
         self.filedb.append({'name': data['path'], 'dir': True})
         return True
 
     def read_upload_file(self, data):
-        f = os.open(self.get_path(data['path']), os.O_WRONLY | os.O_CREAT)
+        fp = self.get_path(data['path'])
+        f = os.open(fp, os.O_WRONLY | os.O_CREAT)
         util.copy_file_limited(self.inpipe, os.fdopen(f, 'wb'), data['size'])
+        xattr.xattr(fp, xattr.XATTR_NOFOLLOW).set('user.pysync-stat', json.dumps(data['stat']).encode())
         self.filedb.append({'name': data['path'], 'sha256': util.sha256_file(open(data['path'], 'rb'))})
         return True
 
