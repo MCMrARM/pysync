@@ -35,7 +35,14 @@ def create_parent_dirs(path):
     for dirp in reversed(dirs_to_create):
         print(f"Creating parent dir {dirp}")
         if not args.dry_run:
-            client.mkdir(dirp, os.open(os.path.join(root_dir, dirp), os.O_RDONLY))
+            try:
+                fh = os.open(os.path.join(root_dir, dirp), os.O_RDONLY)
+            except PermissionError:
+                print("Error opening parent directory", file=sys.stderr)
+                return False
+            client.mkdir(dirp, fh)
+            os.close(fh)
+    return True
 
 def process_local_file(path):
     global total_uploaded_size
@@ -50,14 +57,20 @@ def process_local_file(path):
     if path in server_files:
         local_sha256 = None
         if not is_symlink:
-            local_sha256 = util.sha256_file(open(full_path, 'rb'))
+            try:
+                with open(full_path, 'rb') as fh:
+                    local_sha256 = util.sha256_file(fh)
+            except PermissionError:
+                print("Error opening file for SHA256 calculation", file=sys.stderr)
+                return
         server_file = server_files[path]
         if 'symlink' in server_file and is_symlink and symlink_to == server_file['symlink']:
             return
         if not 'dir' in server_file and not 'symlink' in server_file and local_sha256 == server_file['sha256']:
             # print(f"Skipping {path} - already uploaded")
             return
-    create_parent_dirs(path)
+    if not create_parent_dirs(path):
+        return
     if is_symlink:
         print(f"Symlinking {full_path} -> {symlink_to}")
         if not args.dry_run:
@@ -66,7 +79,13 @@ def process_local_file(path):
     print(f"Uploading {full_path}")
     total_uploaded_size += os.stat(full_path).st_size
     if not args.dry_run:
-        client.upload_file(path, os.open(full_path, os.O_RDONLY))
+        try:
+            fh = os.open(full_path, os.O_RDONLY)
+        except PermissionError:
+            print("Error opening file", file=sys.stderr)
+            return
+        client.upload_file(path, fh)
+        os.close(fh)
 
 def process_local_dir(path):
     local_dirs[path] = True
@@ -75,11 +94,18 @@ def process_local_dir(path):
         if 'dir' in server_file:
             # print(f"Skipping {path} - dir already created")
             return
-    create_parent_dirs(path)
+    if not create_parent_dirs(path):
+        return
     full_path = os.path.join(root_dir, path)
     print(f"Creating dir {full_path}")
     if not args.dry_run:
-        client.mkdir(path, os.open(full_path, os.O_RDONLY))
+        try:
+            fh = os.open(full_path, os.O_RDONLY)
+        except PermissionError:
+            print("Error opening directory", file=sys.stderr)
+            return
+        client.mkdir(path, fh)
+        os.close(fh)
     created_dirs[path] = True
 
 file_finder.process(root_dir, process_local_file, process_local_dir)

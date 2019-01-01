@@ -56,7 +56,8 @@ class SyncClient:
         self.write_command({'op': 'upload', 'path': server_filename, 'stat': stat_data, 'size': file_size,
                             'xattr_size': len(xattr_data)})
         self.outpipe.write(xattr_data)
-        shutil.copyfileobj(os.fdopen(fd, 'rb'), self.outpipe, file_size)
+        with os.fdopen(os.dup(fd), 'rb') as source:
+            shutil.copyfileobj(source, self.outpipe, file_size)
         self.outpipe.flush()
 
     def delete(self, server_filename):
