@@ -42,6 +42,7 @@ class FileDb:
 
     def rewrite(self):
         self._close_append_handle()
+        self.unneeded_records = 0
         with open(self.file_path + ".tmp", 'w') as file:
             for v in self.db.values():
                 file.write(json.dumps(v))
