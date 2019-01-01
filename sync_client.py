@@ -34,6 +34,14 @@ class SyncClient:
         self.outpipe.write(xattr_data)
         self.outpipe.flush()
 
+    def symlink(self, server_filename, server_to, local_filename):
+        stat_data = self._get_file_stat(local_filename)
+        xattr_data = pickle.dumps(xattr.get_all(local_filename, nofollow=True))
+        self.write_command({'op': 'symlink', 'path': server_filename, 'to': server_to,
+                            'stat': stat_data, 'xattr_size': len(xattr_data)})
+        self.outpipe.write(xattr_data)
+        self.outpipe.flush()
+
     def upload_file(self, server_filename, fd):
         stat_data = self._get_file_stat(fd)
         file_size = os.stat(fd).st_size

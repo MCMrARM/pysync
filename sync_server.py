@@ -35,15 +35,18 @@ class SyncServer:
             return self.read_upload_file(data)
         if op == "mkdir":
             return self.read_mkdir(data)
+        if op == "symlink":
+            return self.read_symlink(data)
         if op == "getdb":
             return self.read_getdb(data)
         return False
 
     @staticmethod
     def _set_stat_and_xattr(fp, stat, xattrs):
-        xattr.set(fp, 'user.psy.stat', json.dumps(stat).encode(), nofollow=True)
-        for k, v in xattrs:
-            xattr.set(fp, 'user.psy.x.'.encode() + k, v, nofollow=True)
+        # xattr.set(fp, 'user.psy.stat', json.dumps(stat).encode(), nofollow=True)
+        # for k, v in xattrs:
+        #     xattr.set(fp, 'user.psy.x.'.encode() + k, v, nofollow=True)
+        pass
 
     def read_mkdir(self, data):
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
@@ -55,6 +58,20 @@ class SyncServer:
             pass
         self._set_stat_and_xattr(fp, data['stat'], xattr_data)
         self.filedb.append({'name': data['path'], 'dir': True})
+        return True
+
+    def read_symlink(self, data):
+        xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
+
+        fp = self.get_path(data['path'])
+        to_fp = data['to']
+        if to_fp[0] == '/':
+            to_fp = self.get_path(to_fp)
+        if os.path.exists(fp):
+            os.remove(fp)
+        os.symlink(to_fp, fp)
+        self._set_stat_and_xattr(fp, data['stat'], xattr_data)
+        self.filedb.append({'name': data['path'], 'symlink': data['to']})
         return True
 
     def read_upload_file(self, data):

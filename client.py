@@ -12,14 +12,14 @@ parser.add_argument("-c", "--command", help="specifies the command to run", requ
 parser.add_argument("--dry-run", help="don't copy files", action='store_true')
 args = parser.parse_args()
 
+root_dir = "/"
+
 proc = subprocess.Popen(args.command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr)
 client = SyncClient(proc)
 server_files = client.get_file_db()
 file_finder = FileFinder()
 with open(args.file_list, "r") as filters_file:
-    file_finder.add_from_text(filters_file)
-
-root_dir = "/"
+    file_finder.add_from_text(root_dir, filters_file)
 
 created_dirs = {}
 total_uploaded_size = 0
@@ -37,17 +37,28 @@ def create_parent_dirs(path):
 
 def process_local_file(path):
     global total_uploaded_size
+    full_path = os.path.join(root_dir, path)
+    is_symlink = os.path.islink(full_path)
+    symlink_to = None
+    if is_symlink:
+        symlink_to = os.readlink(full_path)
+        if symlink_to[0] == '/': # absolute path
+            symlink_to = '/' + os.path.relpath(symlink_to, root_dir)
     if path in server_files:
         local_sha256 = util.sha256_file(open(path, 'rb'))
         server_file = server_files[path]
-        if not 'dir' in server_file and local_sha256 == server_file['sha256']:
+        if 'symlink' in server_file and is_symlink and symlink_to == server_files['symlink']:
+            return
+        if not 'dir' in server_file and not 'symlink' in server_file and local_sha256 == server_file['sha256']:
             # print(f"Skipping {path} - already uploaded")
             return
     create_parent_dirs(path)
-    full_path = os.path.join(root_dir, path)
-    print(f"Uploading {full_path}")
-    if os.path.islink(full_path):
+    if is_symlink:
+        print(f"Symlinking {full_path} -> {symlink_to}")
+        if not args.dry_run:
+            client.symlink(path, symlink_to, full_path)
         return
+    print(f"Uploading {full_path}")
     total_uploaded_size += os.stat(full_path).st_size
     if not args.dry_run:
         client.upload_file(path, os.open(full_path, os.O_RDONLY))
