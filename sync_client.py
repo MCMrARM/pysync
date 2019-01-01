@@ -20,18 +20,18 @@ class SyncClient:
         self.outpipe.flush()
 
     @staticmethod
-    def _get_file_stat(fd):
-        f_stat = os.stat(fd)
+    def _get_file_stat(fd, follow_symlinks=True):
+        f_stat = os.stat(fd, follow_symlinks=follow_symlinks)
         stat_data = {'mode': f_stat.st_mode, 'uid': f_stat.st_uid, 'gid': f_stat.st_gid,
                      'atime': f_stat.st_atime, 'mtime': f_stat.st_mtime}
         return stat_data
 
     @staticmethod
-    def _get_xattrs(fd):
+    def _get_xattrs(fd, follow_symlinks=True):
         ret = []
-        for name in os.listxattr(fd):
+        for name in os.listxattr(fd, follow_symlinks=follow_symlinks):
             name = name.encode()
-            ret.append((name, os.getxattr(fd, name)))
+            ret.append((name, os.getxattr(fd, name, follow_symlinks=follow_symlinks)))
         return ret
 
     def mkdir(self, server_filename, fd):
@@ -42,8 +42,8 @@ class SyncClient:
         self.outpipe.flush()
 
     def symlink(self, server_filename, server_to, local_filename):
-        stat_data = self._get_file_stat(local_filename)
-        xattr_data = pickle.dumps(self._get_xattrs(fd))
+        stat_data = self._get_file_stat(local_filename, False)
+        xattr_data = pickle.dumps(self._get_xattrs(local_filename, False))
         self.write_command({'op': 'symlink', 'path': server_filename, 'to': server_to,
                             'stat': stat_data, 'xattr_size': len(xattr_data)})
         self.outpipe.write(xattr_data)
