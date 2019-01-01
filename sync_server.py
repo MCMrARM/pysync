@@ -1,5 +1,6 @@
 import os
 import json
+import pickle
 import util
 import xattr
 
@@ -38,21 +39,30 @@ class SyncServer:
             return self.read_getdb(data)
         return False
 
+    @staticmethod
+    def _set_stat_and_xattr(fp, stat, xattrs):
+        xattr.set(fp, 'user.psy.stat', json.dumps(stat).encode(), nofollow=True)
+        for k, v in xattrs:
+            xattr.set(fp, 'user.psy.x.'.encode() + k, v, nofollow=True)
+
     def read_mkdir(self, data):
+        xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
+
         fp = self.get_path(data['path'])
         try:
             os.mkdir(fp)
         except FileExistsError:
             pass
-        xattr.xattr(fp.encode(), xattr.XATTR_NOFOLLOW).set('user.pysync-stat', json.dumps(data['stat']).encode())
+        self._set_stat_and_xattr(fp, data['stat'], xattr_data)
         self.filedb.append({'name': data['path'], 'dir': True})
         return True
 
     def read_upload_file(self, data):
         fp = self.get_path(data['path'])
         f = os.open(fp, os.O_WRONLY | os.O_CREAT)
+        xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
         util.copy_file_limited(self.inpipe, os.fdopen(f, 'wb'), data['size'])
-        xattr.xattr(fp, xattr.XATTR_NOFOLLOW).set('user.pysync-stat', json.dumps(data['stat']).encode())
+        self._set_stat_and_xattr(fp, data['stat'], xattr_data)
         self.filedb.append({'name': data['path'], 'sha256': util.sha256_file(open(data['path'], 'rb'))})
         return True
 

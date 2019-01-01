@@ -23,6 +23,16 @@ root_dir = "/"
 
 created_dirs = {}
 
+def create_parent_dirs(path):
+    path_dir = os.path.dirname(path)
+    dirs_to_create = []
+    while not path_dir in created_dirs and path_dir != root_dir:
+        dirs_to_create.append(path_dir)
+        path_dir = os.path.dirname(path_dir)
+    for dirp in reversed(dirs_to_create):
+        print(f"Creating parent dir {dirp}")
+        client.mkdir(dirp, os.open(os.path.join(root_dir, dirp), os.O_RDONLY))
+
 def process_local_file(path):
     if path in server_files:
         local_sha256 = util.sha256_file(open(path, 'rb'))
@@ -30,14 +40,8 @@ def process_local_file(path):
         if not 'dir' in server_file and local_sha256 == server_file['sha256']:
             # print(f"Skipping {path} - already uploaded")
             return
+    create_parent_dirs(path)
     print(f"Uploading {path}")
-    path_dir = os.path.dirname(path)
-    dirs_to_create = []
-    while not path_dir in created_dirs and path_dir != root_dir:
-        dirs_to_create.append(path_dir)
-        path_dir = os.path.dirname(path_dir)
-    for dir in reversed(dirs_to_create):
-        client.mkdir(dir, os.open(os.path.join(root_dir, dir), os.O_RDONLY))
     client.upload_file(path, os.open(os.path.join(root_dir, path), os.O_RDONLY))
 
 def process_local_dir(path):
@@ -46,6 +50,7 @@ def process_local_dir(path):
         if 'dir' in server_file:
             # print(f"Skipping {path} - dir already created")
             return
+    create_parent_dirs(path)
     print(f"Creating dir {path}")
     client.mkdir(path, os.open(os.path.join(root_dir, path), os.O_RDONLY))
     created_dirs[path] = True
