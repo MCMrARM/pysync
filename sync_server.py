@@ -2,7 +2,6 @@ import os
 import json
 import pickle
 import util
-import xattr
 
 class SyncServer:
     def __init__(self, inpipe, outpipe, rootdir, filedb):
@@ -43,10 +42,9 @@ class SyncServer:
 
     @staticmethod
     def _set_stat_and_xattr(fp, stat, xattrs):
-        # xattr.set(fp, 'user.psy.stat', json.dumps(stat).encode(), nofollow=True)
-        # for k, v in xattrs:
-        #     xattr.set(fp, 'user.psy.x.'.encode() + k, v, nofollow=True)
-        pass
+        os.setxattr(fp, 'user.psy.stat', json.dumps(stat).encode(), follow_symlinks=False)
+        for k, v in xattrs:
+            os.setxattr(fp, 'user.psy.x.'.encode() + k, v, follow_symlinks=False)
 
     def read_mkdir(self, data):
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
@@ -70,7 +68,7 @@ class SyncServer:
         if os.path.exists(fp):
             os.remove(fp)
         os.symlink(to_fp, fp)
-        self._set_stat_and_xattr(fp, data['stat'], xattr_data)
+        # self._set_stat_and_xattr(fp, data['stat'], xattr_data)
         self.filedb.append({'name': data['path'], 'symlink': data['to']})
         return True
 
