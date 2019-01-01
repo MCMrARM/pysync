@@ -30,6 +30,7 @@ class SyncClient:
     def _get_xattrs(fd):
         ret = []
         for name in os.listxattr(fd):
+            name = name.encode()
             ret.append((name, os.getxattr(fd, name)))
         return ret
 

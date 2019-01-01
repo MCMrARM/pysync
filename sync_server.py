@@ -80,7 +80,7 @@ class SyncServer:
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
         util.copy_file_limited(self.inpipe, os.fdopen(f, 'wb'), data['size'])
         self._set_stat_and_xattr(fp, data['stat'], xattr_data)
-        self.filedb.append({'name': data['path'], 'sha256': util.sha256_file(open(data['path'], 'rb'))})
+        self.filedb.append({'name': data['path'], 'sha256': util.sha256_file(open(fp, 'rb'))})
         return True
 
     def read_delete(self, data):

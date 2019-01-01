@@ -50,7 +50,7 @@ def process_local_file(path):
     if path in server_files:
         local_sha256 = None
         if not is_symlink:
-            local_sha256 = util.sha256_file(open(path, 'rb'))
+            local_sha256 = util.sha256_file(open(full_path, 'rb'))
         server_file = server_files[path]
         if 'symlink' in server_file and is_symlink and symlink_to == server_file['symlink']:
             return
