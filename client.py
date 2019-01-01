@@ -45,9 +45,11 @@ def process_local_file(path):
         if symlink_to[0] == '/': # absolute path
             symlink_to = '/' + os.path.relpath(symlink_to, root_dir)
     if path in server_files:
-        local_sha256 = util.sha256_file(open(path, 'rb'))
+        local_sha256 = None
+        if not is_symlink:
+            local_sha256 = util.sha256_file(open(path, 'rb'))
         server_file = server_files[path]
-        if 'symlink' in server_file and is_symlink and symlink_to == server_files['symlink']:
+        if 'symlink' in server_file and is_symlink and symlink_to == server_file['symlink']:
             return
         if not 'dir' in server_file and not 'symlink' in server_file and local_sha256 == server_file['sha256']:
             # print(f"Skipping {path} - already uploaded")
