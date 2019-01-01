@@ -25,7 +25,10 @@ class FileDb:
                     continue
                 if l['name'] in self.db:
                     self.unneeded_records += 1
-                self.db[l['name']] = l
+                if 'deleted' not in l:
+                    self.db[l['name']] = l
+                else:
+                    self.db.pop(l['name'], None)
         self._maybe_compact()
 
     def _close_append_handle(self):
@@ -47,7 +50,10 @@ class FileDb:
     def append(self, entry):
         if entry['name'] in self.db:
             self.unneeded_records += 1
-        self.db[entry['name']] = entry
+        if 'deleted' not in entry:
+            self.db[entry['name']] = entry
+        else:
+            self.db.pop(entry['name'], None)
         if self.append_handle is None:
             if not os.path.exists(self.file_path):
                 self.rewrite()

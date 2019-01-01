@@ -22,6 +22,8 @@ with open(args.file_list, "r") as filters_file:
     file_finder.add_from_text(root_dir, filters_file)
 
 created_dirs = {}
+local_dirs = {}
+local_files = {}
 total_uploaded_size = 0
 
 def create_parent_dirs(path):
@@ -37,6 +39,7 @@ def create_parent_dirs(path):
 
 def process_local_file(path):
     global total_uploaded_size
+    local_files[path] = True
     full_path = os.path.join(root_dir, path)
     is_symlink = os.path.islink(full_path)
     symlink_to = None
@@ -66,6 +69,7 @@ def process_local_file(path):
         client.upload_file(path, os.open(full_path, os.O_RDONLY))
 
 def process_local_dir(path):
+    local_dirs[path] = True
     if path in server_files:
         server_file = server_files[path]
         if 'dir' in server_file:
@@ -79,6 +83,15 @@ def process_local_dir(path):
     created_dirs[path] = True
 
 file_finder.process(root_dir, process_local_file, process_local_dir)
+
+files_to_delete = []
+for fname, file in server_files.items():
+    if fname not in local_files and fname not in local_dirs and fname != "":
+        files_to_delete.append(fname)
+for fname in reversed(files_to_delete):
+    print(f"Deleting {fname}")
+    if not args.dry_run:
+        client.delete(fname)
 
 proc.stdin.close()
 proc.wait()

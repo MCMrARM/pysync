@@ -58,6 +58,9 @@ class SyncClient:
         shutil.copyfileobj(os.fdopen(fd, 'rb'), self.outpipe, file_size)
         self.outpipe.flush()
 
+    def delete(self, server_filename):
+        self.write_command({'op': 'delete', 'path': server_filename})
+
     def get_file_db(self):
         self.write_command({'op': 'getdb'})
         ret = {}

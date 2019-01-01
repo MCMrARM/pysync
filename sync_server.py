@@ -38,6 +38,8 @@ class SyncServer:
             return self.read_symlink(data)
         if op == "getdb":
             return self.read_getdb(data)
+        if op == "delete":
+            return self.read_delete(data)
         return False
 
     @staticmethod
@@ -79,6 +81,18 @@ class SyncServer:
         util.copy_file_limited(self.inpipe, os.fdopen(f, 'wb'), data['size'])
         self._set_stat_and_xattr(fp, data['stat'], xattr_data)
         self.filedb.append({'name': data['path'], 'sha256': util.sha256_file(open(data['path'], 'rb'))})
+        return True
+
+    def read_delete(self, data):
+        fp = self.get_path(data['path'])
+        try:
+            if os.path.isdir(fp):
+                os.rmdir(fp)
+            else:
+                os.remove(fp)
+        except FileNotFoundError:
+            pass
+        self.filedb.append({'name': data['path'], 'deleted': 'true'})
         return True
 
     def read_getdb(self, data):
