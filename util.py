@@ -33,4 +33,39 @@ def sha256_file(file):
             h.update(mv[:n])
         else:
             h.update(mv)
-    return h.hexdigest()
+    return h.digest()
+
+def read_exactly(stream, rlen):
+    ret = stream.read(rlen)
+    if rlen != len(ret):
+        raise EOFError()
+    return ret
+
+
+def encode_varint(buf, val):
+    while True:
+        wr = val & 0x7f
+        val >>= 7
+        if val:
+            buf.append(wr | 0x80)
+        else:
+            buf.append(wr)
+            return
+
+# https://github.com/fmoo/python-varint/blob/master/varint.py
+def decode_varint_stream(stream):
+    shift = 0
+    result = 0
+    while True:
+        i = ord(read_exactly(stream, 1))
+        result |= (i & 0x7f) << shift
+        shift += 7
+        if not (i & 0x80):
+            break
+
+    return result
+
+def decode_varint_prefixed_bytes(stream):
+    rlen = decode_varint_stream(stream)
+    return read_exactly(stream, rlen)
+

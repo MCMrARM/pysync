@@ -9,6 +9,7 @@ import util
 parser = argparse.ArgumentParser(description='Creates a backup')
 parser.add_argument("-f", "--file-list", help="specifies the file list", required=True)
 parser.add_argument("-c", "--command", help="specifies the command to run", required=True)
+parser.add_argument("-m", "--size-and-time", help="assume files with same size and mtime are equal", action='store_true')
 parser.add_argument("--dry-run", help="don't copy files", action='store_true')
 args = parser.parse_args()
 
@@ -54,21 +55,26 @@ def process_local_file(path):
         symlink_to = os.readlink(full_path)
         if symlink_to[0] == '/': # absolute path
             symlink_to = '/' + os.path.relpath(symlink_to, root_dir)
-    if path in server_files:
-        local_sha256 = None
-        if not is_symlink:
+    server_file = server_files.find_path(path)
+    if server_file is not None:
+        if server_file.is_symlink() and is_symlink and symlink_to == server_file.symlink:
+            return
+        if not server_file.is_directory() and not server_file.is_symlink() and not is_symlink:
+            stat_info = os.stat(full_path)
+            if stat_info.st_size == server_file.size and stat_info.st_mtime_ns == server_file.mtime:
+                # print(f"Skipping {path} - already uploaded (time)")
+                return
+
             try:
                 with open(full_path, 'rb') as fh:
                     local_sha256 = util.sha256_file(fh)
             except PermissionError:
                 print("Error opening file for SHA256 calculation", file=sys.stderr)
                 return
-        server_file = server_files[path]
-        if 'symlink' in server_file and is_symlink and symlink_to == server_file['symlink']:
-            return
-        if not 'dir' in server_file and not 'symlink' in server_file and local_sha256 == server_file['sha256']:
-            # print(f"Skipping {path} - already uploaded")
-            return
+
+            if local_sha256 == server_file.sha256:
+                # print(f"Skipping {path} - already uploaded (sha256)")
+                return
     if not create_parent_dirs(path):
         return
     if is_symlink:
@@ -88,10 +94,12 @@ def process_local_file(path):
         os.close(fh)
 
 def process_local_dir(path):
+    if path == '':
+        return
     local_dirs[path] = True
-    if path in server_files:
-        server_file = server_files[path]
-        if 'dir' in server_file:
+    server_file = server_files.find_path(path)
+    if server_file is not None:
+        if server_file.is_directory():
             # print(f"Skipping {path} - dir already created")
             return
     if not create_parent_dirs(path):
@@ -110,14 +118,18 @@ def process_local_dir(path):
 
 file_finder.process(root_dir, process_local_file, process_local_dir)
 
-files_to_delete = []
-for fname, file in server_files.items():
-    if fname not in local_files and fname not in local_dirs and fname != "":
-        files_to_delete.append(fname)
-for fname in reversed(files_to_delete):
-    print(f"Deleting {fname}")
-    if not args.dry_run:
-        client.delete(fname)
+def delete_files(el, current_path = ""):
+    if el.children is not None:
+        for chld in el.children.values():
+            delete_files(chld, os.path.join(current_path, chld.name))
+    if current_path not in local_files and current_path not in local_dirs and current_path != '':
+        print(f"Deleting {current_path}")
+        if not args.dry_run:
+            client.delete(current_path)
+
+delete_files(server_files.root)
+
+print("Done")
 
 proc.stdin.close()
 proc.wait()

@@ -2,6 +2,7 @@ import json
 import pickle
 import os
 import shutil
+from file_db import FileDb, FileDbEntry
 
 class SyncClient:
     def __init__(self, proc):
@@ -23,7 +24,7 @@ class SyncClient:
     def _get_file_stat(fd, follow_symlinks=True):
         f_stat = os.stat(fd, follow_symlinks=follow_symlinks)
         stat_data = {'mode': f_stat.st_mode, 'uid': f_stat.st_uid, 'gid': f_stat.st_gid,
-                     'atime': f_stat.st_atime, 'mtime': f_stat.st_mtime}
+                     'atime': f_stat.st_atime_ns, 'mtime': f_stat.st_mtime_ns}
         return stat_data
 
     @staticmethod
@@ -65,11 +66,12 @@ class SyncClient:
 
     def get_file_db(self):
         self.write_command({'op': 'getdb'})
-        ret = {}
-        while True:
-            line = self.read_line()
-            if not line or line == "":
-                break
-            line = json.loads(line)
-            ret[line['name']] = line
+        data = json.loads(self.read_line())
+        ret = FileDb(None)
+        for i in range(1, data['count']):
+            ent = FileDbEntry.decode(self.inpipe, ret.db)
+            if ent.is_removed():
+                raise ValueError('Server db data cannot contain removed entries')
+            ret.db[ent.id] = ent
+            ent.parent.add_child(ent)
         return ret
