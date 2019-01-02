@@ -2,6 +2,8 @@ import os
 import json
 import pickle
 import util
+import shutil
+import errno
 from file_db import FileDbEntry
 import sys
 
@@ -11,6 +13,7 @@ class SyncServer:
         self.outpipe = outpipe
         self.rootdir = rootdir
         self.filedb = filedb
+        self.allowdelete = False
 
     def read_line(self):
         line = self.inpipe.readline()
@@ -54,6 +57,9 @@ class SyncServer:
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
 
         fp = self.get_path(data['path'])
+        if os.path.isfile(fp) and self.allowdelete:
+            print(f"mkdir {fp} - already exists; deleting", file=sys.stderr)
+            os.remove(fp)
         try:
             os.mkdir(fp)
         except FileExistsError:
@@ -79,7 +85,12 @@ class SyncServer:
         if to_fp[0] == '/':
             to_fp = self.get_path(to_fp)
         if os.path.exists(fp):
-            os.remove(fp)
+            if os.path.islink(fp):
+                os.remove(fp)
+            elif os.path.isdir(fp) and self.allowdelete:
+                shutil.rmtree(fp, ignore_errors=True)
+            elif self.allowdelete:
+                os.remove(fp)
         os.symlink(to_fp, fp)
         # self._set_stat_and_xattr(fp, data['stat'], xattr_data)
 
@@ -94,6 +105,13 @@ class SyncServer:
         fp = self.get_path(data['path'])
         f = os.open(fp, os.O_WRONLY | os.O_CREAT)
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
+
+        if os.path.exists(fp) and self.allowdelete:
+            if os.path.islink(fp):
+                os.remove(fp)
+            elif os.path.isdir(fp):
+                shutil.rmtree(fp, ignore_errors=True)
+
         with os.fdopen(os.dup(f), 'wb') as output:
             util.copy_file_limited(self.inpipe, output, data['size'])
         self._set_stat_and_xattr(fp, data['stat'], xattr_data)
@@ -119,6 +137,9 @@ class SyncServer:
                 os.remove(fp)
         except FileNotFoundError:
             pass
+        except OSError as e:
+            if e.errno != errno.ENOTEMPTY:
+                raise
         ent = self.filedb.get_path(data['path'])
         ent.set_removed()
         self.filedb.append(ent)
