@@ -120,7 +120,6 @@ class SyncServer:
         ent = FileDbEntry(os.path.basename(data['path']), parent_dir)
         ent.size = data['size']
         ent.mtime = data['stat']['mtime']
-        self.filedb.append(ent)
         with open(fp, 'rb') as fh:
             ent.sha256 = util.sha256_file(fh)
         self.filedb.append(ent)

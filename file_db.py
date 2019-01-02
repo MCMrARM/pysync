@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from util import *
 
 class FileDbEntry:
@@ -186,7 +187,7 @@ class FileDb:
             self.append_handle = None
 
     def _maybe_compact(self):
-        if self.unneeded_records >= 1000:
+        if self.unneeded_records >= 100000:
             self.rewrite()
 
     def rewrite(self):
@@ -218,6 +219,8 @@ class FileDb:
     def append(self, entry):
         if entry.parent is None:
             raise ValueError('Entry parent can not be None')
+        if entry.id in self.db:
+            self.unneeded_records += 1
         if entry.id is None:
             if entry.parent.children is not None and entry.name in entry.parent.children:
                 other_entry = entry.parent.children[entry.name]
@@ -230,9 +233,6 @@ class FileDb:
                 self.next_id += 1
             entry.parent.add_child(entry)
             self.db[entry.id] = entry
-
-        if entry.id in self.db:
-            self.unneeded_records += 1
         if entry.is_removed():
             if entry.id not in self.db:
                 return
