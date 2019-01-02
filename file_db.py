@@ -129,8 +129,9 @@ class FileDbEntry:
         return ent
 
 class FileDb:
-    def __init__(self, file_path):
+    def __init__(self, file_path, readonly=False):
         self.file_path = file_path
+        self.readonly = readonly
         self.unneeded_records = 0
         self.next_id = 1
         self.append_handle = None
@@ -187,10 +188,12 @@ class FileDb:
             self.append_handle = None
 
     def _maybe_compact(self):
-        if self.unneeded_records >= 100000:
+        if self.unneeded_records >= 100000 and not self.readonly:
             self.rewrite()
 
     def rewrite(self):
+        if self.readonly:
+            raise IOError('File opened as read-only')
         self._close_append_handle()
         self.unneeded_records = 0
         with open(self.file_path + ".tmp", 'wb') as file:
@@ -217,6 +220,8 @@ class FileDb:
         return ret
 
     def append(self, entry):
+        if self.readonly:
+            raise IOError('File opened as read-only')
         if entry.parent is None:
             raise ValueError('Entry parent can not be None')
         if entry.id in self.db:
