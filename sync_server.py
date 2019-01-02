@@ -14,6 +14,8 @@ class SyncServer:
         self.rootdir = rootdir
         self.filedb = filedb
         self.allowdelete = False
+        self.permissions_file = 0o744
+        self.permissions_dir = 0o755
 
     def read_line(self):
         line = self.inpipe.readline()
@@ -61,7 +63,7 @@ class SyncServer:
             print(f"mkdir {fp} - already exists; deleting", file=sys.stderr)
             os.remove(fp)
         try:
-            os.mkdir(fp)
+            os.mkdir(fp, mode=self.permissions_dir)
         except FileExistsError:
             pass
         self._set_stat_and_xattr(fp, data['stat'], xattr_data)
@@ -103,7 +105,7 @@ class SyncServer:
 
     def read_upload_file(self, data):
         fp = self.get_path(data['path'])
-        f = os.open(fp, os.O_WRONLY | os.O_CREAT)
+        f = os.open(fp, os.O_WRONLY | os.O_CREAT, self.permissions_file)
         xattr_data = pickle.loads(self.inpipe.read(data['xattr_size']))
 
         if os.path.exists(fp) and self.allowdelete:
