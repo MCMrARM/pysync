@@ -83,7 +83,8 @@ def process_local_file(path):
             client.symlink(path, symlink_to, full_path)
         return
     print(f"Uploading {full_path}")
-    total_uploaded_size += os.stat(full_path).st_size
+    if not is_symlink:
+        total_uploaded_size += os.stat(full_path).st_size
     if not args.dry_run:
         try:
             fh = os.open(full_path, os.O_RDONLY)
